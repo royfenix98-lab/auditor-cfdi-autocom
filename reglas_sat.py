@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import pandas as pd
 import requests
+import bd_supabase as _bd
 
 # ---------------------------------------------------------
 # 1. FUNCIÓN DE NORMALIZACIÓN (ELIMINA ACENTOS)
@@ -668,7 +669,10 @@ CATEGORIAS_VALIDAS = CATEGORIAS_CLAVE_DIRECTA + ("ACTIVO_FIJO", "GENERAL")
 #      como REFACCION) agregándole palabras o prefijos nuevos sin editar
 #      Python — las palabras dinámicas se buscan igual que las fijas.
 #
-# Formato del JSON (categorias_dinamicas.json, junto a este archivo):
+# Antes vivían en categorias_dinamicas.json, junto a este archivo. Ese
+# archivo se perdía cada vez que Streamlit Community Cloud redesplegaba o
+# reciclaba el contenedor, así que ahora se guardan en Supabase (ver
+# bd_supabase.py) — el formato del diccionario en memoria es idéntico:
 # {
 #   "AGUA": {
 #     "palabras": ["AGUA PURIFICADA", "GARRAFON", ...],
@@ -679,43 +683,20 @@ CATEGORIAS_VALIDAS = CATEGORIAS_CLAVE_DIRECTA + ("ACTIVO_FIJO", "GENERAL")
 #     "fecha_creacion": "2026-09-15 10:00"
 #   }
 # }
-RUTA_CATEGORIAS_DINAMICAS = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "categorias_dinamicas.json"
-)
-
-
 def cargar_categorias_dinamicas():
-    """Lee categorias_dinamicas.json. Si no existe o está corrupto, se
-    comporta como si no hubiera ninguna (nunca rompe la clasificación)."""
-    if not os.path.exists(RUTA_CATEGORIAS_DINAMICAS):
-        return {}
+    """Lee las categorías dinámicas desde Supabase. Si la BD no está
+    configurada o falla, se comporta como si no hubiera ninguna (nunca
+    rompe la clasificación por reglas fijas)."""
     try:
-        pass  # json ya importado arriba
-        with open(RUTA_CATEGORIAS_DINAMICAS, 'r', encoding='utf-8') as f:
-            datos = json.load(f)
-        return datos if isinstance(datos, dict) else {}
+        return _bd.cargar_categorias_dinamicas()
     except Exception:
         return {}
 
 
 def guardar_categorias_dinamicas(categorias):
-    """Escribe categorias_dinamicas.json completo, con respaldo con fecha y
-    hora del archivo previo (igual que el resto de escrituras de este
-    proyecto: nunca se pierde la versión anterior)."""
-    pass  # json ya importado arriba
-    if os.path.exists(RUTA_CATEGORIAS_DINAMICAS):
-        respaldo = RUTA_CATEGORIAS_DINAMICAS.replace(
-            '.json', f'_respaldo_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
-        )
-        try:
-            with open(RUTA_CATEGORIAS_DINAMICAS, 'r', encoding='utf-8') as f:
-                contenido_previo = f.read()
-            with open(respaldo, 'w', encoding='utf-8') as f:
-                f.write(contenido_previo)
-        except OSError:
-            pass
-    with open(RUTA_CATEGORIAS_DINAMICAS, 'w', encoding='utf-8') as f:
-        json.dump(categorias, f, ensure_ascii=False, indent=2)
+    """Guarda el diccionario completo de categorías dinámicas en Supabase
+    (upsert por categoría, no se pierde nada de lo ya aprendido)."""
+    _bd.guardar_categorias_dinamicas(categorias)
 
 
 def agregar_o_reforzar_categoria_dinamica(nombre_categoria, palabras_nuevas=None, prefijos_nuevos=None,
